@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>직업상담 질문지 생성기</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>직업상담 질문지 생성기</h1>
+            <p class="subtitle">참여자 정보를 입력하면 맞춤형 상담 질문을 생성합니다</p>
+        </header>
+
+        <section class="input-section">
+            <h2>참여자 정보 입력</h2>
+            <form id="participantForm">
+                <div class="form-group">
+                    <label for="age">나이</label>
+                    <input type="number" id="age" required placeholder="예: 55">
+                </div>
+                <div class="form-group">
+                    <label for="gender">성별</label>
+                    <select id="gender" required>
+                        <option value="">선택하세요</option>
+                        <option value="male">남성</option>
+                        <option value="female">여성</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="experienceType">경력 유형</label>
+                    <select id="experienceType" required>
+                        <option value="">선택하세요</option>
+                        <option value="experienced">경력자</option>
+                        <option value="newcomer">신입/무경력</option>
+                    </select>
+                </div>
+                <div class="form-group" id="industryGroup">
+                    <label for="industry">산업 분야</label>
+                    <input type="text" id="industry" placeholder="예: 제조업 (선택사항)">
+                </div>
+                <div class="form-group" id="jobTypeGroup">
+                    <label for="jobType">직무 유형</label>
+                    <input type="text" id="jobType" placeholder="예: 생산직 (선택사항)">
+                </div>
+                <div class="form-group" id="experienceGroup">
+                    <label for="experience">경력 (년)</label>
+                    <input type="number" id="experience" placeholder="예: 25 (선택사항)">
+                </div>
+                <div class="form-group">
+                    <label for="careerDecision">진로결정 또는 미결정관련 탐색</label>
+                    <select id="careerDecision" required>
+                        <option value="">선택하세요</option>
+                        <option value="decided">진로결정</option>
+                        <option value="undecided">미결정관련 탐색</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="goal">희망 직무 또는 전환 목표</label>
+                    <input type="text" id="goal" required placeholder="예: 사무직 전환">
+                </div>
+                <div class="form-group">
+                    <label for="situation">현재 상황</label>
+                    <input type="text" id="situation" placeholder="예: 퇴직 후 재취업 희망">
+                </div>
+                <button type="submit">질문지 생성하기</button>
+            </form>
+        </section>
+
+        <section class="output-section" id="outputSection" style="display: none;">
+            <h2>맞춤형 상담 질문지</h2>
+            <div id="participantSummary"></div>
+            <div id="questionsContainer"></div>
+            <div class="actions">
+                <button onclick="window.print()">인쇄하기</button>
+                <button onclick="resetForm()">새로 만들기</button>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

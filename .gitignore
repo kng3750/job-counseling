@@ -1,0 +1,14 @@
+# Environment variables and secret keys
+env/
+.env
+.env.*
+
+# Dependencies
+node_modules/
+
+# Vercel deployment files
+.vercel/
+
+# OS metadata
+.DS_Store
+Thumbs.db
