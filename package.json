@@ -1,0 +1,26 @@
+{
+  "name": "job-counseling",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env.local server/local.js",
+    "dev": "node --env-file-if-exists=.env.local server/local.js",
+    "test": "node --test",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/manage.js migrate",
+    "admin:create": "node --env-file-if-exists=.env.local scripts/manage.js create-admin",
+    "admin:reset": "node --env-file-if-exists=.env.local scripts/manage.js reset-admin"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
+    "express": "^5.1.0",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "supertest": "^7.1.4"
+  }
+}

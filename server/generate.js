@@ -5,7 +5,7 @@ export default async function handler(req, res) {
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-        return res.status(500).json({ error: 'GEMINI_API_KEY가 서버 환경 변수에 설정되어 있지 않습니다.' });
+        return res.status(503).json({ error: '질문 생성 API 호출 실패: 서버 API 설정을 확인해 주세요.' });
     }
 
     try {
@@ -76,9 +76,11 @@ ${careerGuidance}
   }
 }`;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
             method: 'POST',
+            signal: AbortSignal.timeout(45000),
             headers: {
+                'x-goog-api-key': apiKey,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -92,21 +94,30 @@ ${careerGuidance}
         });
 
         if (!response.ok) {
-            const errText = await response.text();
-            console.error('Gemini API Error:', errText);
-            return res.status(response.status).json({ error: `Gemini API 호출 실패 (상태: ${response.status})` });
+            await response.body?.cancel();
+            console.error('Gemini API Error:', response.status);
+            return res.status(502).json({ error: `Gemini API 호출 실패 (상태: ${response.status})` });
         }
 
         const data = await response.json();
         const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!rawText) {
-            return res.status(500).json({ error: 'Gemini API 응답에서 텍스트를 찾을 수 없습니다.' });
+            return res.status(502).json({ error: '질문 생성 API 호출 실패: 올바른 응답을 받지 못했습니다.' });
         }
 
         const questionsJson = JSON.parse(rawText);
+        for (const [key, count] of [['stage1',5],['stage2',3],['stage3',4],['stage4',3]]) {
+            const s = questionsJson[key];
+            if (!s || typeof s.title !== 'string' || s.title.length > 200 ||
+                typeof s.description !== 'string' || s.description.length > 1000 ||
+                !Array.isArray(s.questions) || s.questions.length !== count ||
+                s.questions.some(q => typeof q !== 'string' || !q.trim() || q.length > 2000)) {
+                throw new Error('Invalid AI response');
+            }
+        }
         return res.status(200).json({ success: true, questions: questionsJson });
     } catch (error) {
-        console.error('Server error:', error);
-        return res.status(500).json({ error: error.message || '서버 내부 오류가 발생했습니다.' });
+        console.error('Generation failed:', error.name);
+        return res.status(502).json({ error: '질문 생성 API 호출 실패: 잠시 후 다시 시도해 주세요.' });
     }
 }
