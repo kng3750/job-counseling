@@ -1,10 +1,14 @@
-let csrfToken='';
+let csrfToken='',generation=null,epoch=0,leaving=false;
+function cancelGeneration(){epoch++;generation?.abort();generation=null;}
+
 const form=document.getElementById('participantForm'), errorBox=document.getElementById('requestError'), output=document.getElementById('outputSection');
 const submit=form.querySelector('button[type="submit"]');submit.disabled=true;
 async function session(){
- const r=await fetch('/api/auth/me');
+ const ticket=epoch;submit.disabled=true;
+ const r=await fetch('/api/auth/me',{cache:'no-store'});
+ if(ticket!==epoch||leaving)return;
  if(!r.ok){if(r.status===401){location.replace('/login');return;}throw new Error('로그인 확인에 실패했습니다. 새로고침해 주세요.');}
- const me=await r.json();csrfToken=me.csrfToken;
+ const me=await r.json();if(ticket!==epoch||leaving)return;csrfToken=me.csrfToken;
  document.getElementById('sessionName').textContent=me.name;
  document.getElementById('adminLink').hidden=me.role!=='admin';submit.disabled=false;
 }
@@ -43,29 +47,32 @@ function displayResults(p,questions){
  output.style.display='block';output.scrollIntoView({behavior:'smooth'});
 }
 form.addEventListener('submit',async event=>{
- event.preventDefault();clearResults();errorBox.textContent='';submit.disabled=true;submit.textContent='질문 생성 중...';
+ event.preventDefault();if(leaving)return;cancelGeneration();const ticket=epoch;generation=new AbortController();clearResults();errorBox.textContent='';submit.disabled=true;submit.textContent='질문 생성 중...';
  const value=id=>document.getElementById(id).value,experienced=value('experienceType')==='experienced';
  const participant={age:Number(value('age')),gender:value('gender')==='male'?'남성':'여성',experienceType:value('experienceType'),
  industry:experienced?value('industry'):'',jobType:experienced?value('jobType'):'',experience:experienced?Number(value('experience')):0,
  careerDecision:value('careerDecision'),goal:value('goal'),situation:value('situation')||'현재 상황 미기재'};
  try{
-  const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify({participant}),signal:AbortSignal.timeout(55000)});
+  const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify({participant}),signal:AbortSignal.any([generation.signal,AbortSignal.timeout(55000)])});
   const data=await r.json().catch(()=>({}));
+  if(ticket!==epoch||leaving)return;
   if(!r.ok){if(r.status===401){location.replace('/login');return;}throw new Error(data.error||'질문 생성 API 호출에 실패했습니다.');}
   if(!data.success||!data.questions)throw new Error('질문 생성 API 응답이 올바르지 않습니다.');
   displayResults(participant,data.questions);
- }catch(e){clearResults();errorBox.textContent='호출 실패: '+(e.name==='TimeoutError'?'응답 시간이 초과되었습니다. 다시 시도해 주세요.':e.message);errorBox.scrollIntoView({behavior:'smooth'});}
- finally{submit.disabled=false;submit.textContent='질문지 생성하기';}
+ }catch(e){if(ticket!==epoch||leaving)return;clearResults();errorBox.textContent='호출 실패: '+(e.name==='TimeoutError'?'응답 시간이 초과되었습니다. 다시 시도해 주세요.':e.message);errorBox.scrollIntoView({behavior:'smooth'});}
+ finally{if(ticket===epoch&&!leaving){generation=null;submit.disabled=false;submit.textContent='질문지 생성하기';}}
 });
 document.getElementById('printButton').onclick=()=>window.print();
-document.getElementById('resetButton').onclick=()=>{form.reset();clearResults();errorBox.textContent='';experienceFields();window.scrollTo({top:0,behavior:'smooth'});};
+document.getElementById('resetButton').onclick=()=>{cancelGeneration();submit.disabled=false;submit.textContent='질문지 생성하기';form.reset();clearResults();errorBox.textContent='';experienceFields();window.scrollTo({top:0,behavior:'smooth'});};
 document.getElementById('logout').onclick=async()=>{
+ cancelGeneration();leaving=true;submit.disabled=true;form.reset();clearResults();
  try{
   const r=await fetch('/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:'{}'});
   if(!r.ok&&r.status!==401)throw new Error('로그아웃에 실패했습니다. 다시 시도해 주세요.');
   clearResults();location.replace('/login');
- }catch(e){errorBox.textContent=e.message;}
+ }catch(e){leaving=false;errorBox.textContent=e.message;session().catch(()=>{});}
 };
-window.addEventListener('pagehide',clearResults);
+window.addEventListener('pagehide',()=>{cancelGeneration();clearResults();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!generation&&!leaving)session().catch(e=>{clearResults();errorBox.textContent=e.message;});});
 window.addEventListener('pageshow',e=>{if(e.persisted){clearResults();session().catch(err=>errorBox.textContent=err.message);}});
 

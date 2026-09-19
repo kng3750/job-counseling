@@ -11,6 +11,7 @@ form?.addEventListener('submit',async event=>{
  const button=form.querySelector('button');button.disabled=true;
  try{
   const body=Object.fromEntries(new FormData(form));
+  if(form.dataset.action==='login')body.returnTo=new URLSearchParams(location.search).get('returnTo')||'';
   if(body.confirmPassword!==undefined&&body.password!==body.confirmPassword)throw new Error('비밀번호 확인이 일치하지 않습니다.');
   if(form.dataset.action==='reset-password')body.token=resetToken;
   const r=await fetch('/api/auth/'+form.dataset.action,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify(body)});
@@ -24,3 +25,6 @@ form?.addEventListener('submit',async event=>{
  finally{button.disabled=false;}
 });
 
+
+const returnTo=new URLSearchParams(location.search).get('returnTo');
+if(returnTo?.startsWith('/oauth/authorize?'))document.querySelectorAll('a[href="/login"],a[href="/register"]').forEach(a=>a.href=a.getAttribute('href')+'?returnTo='+encodeURIComponent(returnTo));

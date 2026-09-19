@@ -22,4 +22,3 @@ export async function inspectReadiness(db) {
  }catch(e){checks.databaseSchema=false;console.error('Readiness database:',e.code||e.name);}
  return checks;
 }
-

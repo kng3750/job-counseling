@@ -33,6 +33,6 @@ export function cookieToken(req) {
 }
 export function setSession(res,t) {
  const prod=process.env.NODE_ENV==='production';
- res.setHeader('Set-Cookie',(prod?'__Host-session':'session')+'='+t+'; Path=/; HttpOnly; SameSite=Strict; Max-Age='+(t?28800:0)+(prod?'; Secure':''));
+ res.setHeader('Set-Cookie',(prod?'__Host-session':'session')+'='+t+'; Path=/; HttpOnly; SameSite=Lax; Max-Age='+(t?28800:0)+(prod?'; Secure':''));
 }
 

@@ -4,6 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {getDb,transaction} from './db.js';
 import * as sec from './security.js';
 import generate from './generate.js';
+import {createSso} from './sso.js';
 import {inspectReadiness} from './readiness.js';
 const privateDir=fileURLToPath(new URL('../private/',import.meta.url));
 const publicDir=fileURLToPath(new URL('../public/',import.meta.url));
@@ -64,10 +65,16 @@ export function createApp({db:injectedDb,generator=generate}={}) {
    if(!['GET','HEAD'].includes(req.method)&&!sec.equal(req.headers['x-csrf-token'],sec.csrf(t)))throw fail(403,'요청 인증에 실패했습니다. 페이지를 새로고침해 주세요.');
    next();
   } catch(e) {
-   if(e.status===401&&!req.path.startsWith('/api/'))return res.redirect('/login');
+   if(e.status===401&&!req.path.startsWith('/api/'))return res.redirect('/login'+(req.originalUrl.startsWith('/oauth/authorize?')?'?returnTo='+encodeURIComponent(req.originalUrl):''));
    next(e);
   }
  }
+ app.use('/oauth',createSso({db,authenticate,limit}));
+ app.get('/services/job-star',authenticate,async(req,res)=>{
+  const c=(await db().query("SELECT redirect_uri FROM sso_clients WHERE id='job-star' AND enabled=true")).rows[0];
+  if(!c)throw fail(503,'Job Star 연결 설정이 필요합니다.');
+  res.redirect(new URL('/login',c.redirect_uri).href);
+ });
  const admin=(req,res,next)=>req.user.role==='admin'?next():next(fail(403,'관리자만 이용할 수 있습니다.'));
  const page=name=>(req,res)=>res.sendFile(name,{root:privateDir});
  app.get(['/','/index.html'],(req,res)=>res.redirect('/app'));
@@ -107,11 +114,17 @@ export function createApp({db:injectedDb,generator=generate}={}) {
    const old=sec.cookieToken(req); if(old)await c.query('DELETE FROM sessions WHERE token_hash=$1',[sec.digest(old)]);
    await c.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '8 hours')",[sec.digest(t),user.id]);
   });
-  sec.setSession(res,t); res.json({redirect:'/app'});
+  sec.setSession(res,t);
+  const next=req.body.returnTo;
+  const redirect=typeof next==='string'&&next.length<2048&&next.startsWith('/oauth/authorize?')&&!next.includes('#')?next:'/app';
+  res.json({redirect});
  });
  app.get('/api/auth/me',authenticate,(req,res)=>res.json({name:req.user.name,role:req.user.role,csrfToken:sec.csrf(req.sessionToken)}));
  app.post('/api/auth/logout',authenticate,async(req,res)=>{
-  await db().query('DELETE FROM sessions WHERE token_hash=$1',[sec.digest(req.sessionToken)]);
+  await transaction(db(),async c=>{
+   await c.query('DELETE FROM sessions WHERE token_hash=$1',[sec.digest(req.sessionToken)]);
+   await c.query("INSERT INTO audit_logs(actor_id,target_id,action) VALUES($1,$1,'central:logout')",[req.user.id]);
+  });
   sec.setSession(res,'');res.json({ok:true});
  });
  app.post('/api/auth/password',authenticate,async(req,res)=>{

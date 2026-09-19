@@ -22,7 +22,7 @@ const db=getDb();
 try{
  const command=process.argv[2];
  if(command==='migrate'){
-  await db.query(await readFile(new URL('../server/schema.sql',import.meta.url),'utf8'));console.log('DB 스키마 적용 완료');
+  await db.query(await readFile(new URL('../server/schema.sql',import.meta.url),'utf8'));await db.query(await readFile(new URL('../server/sso-schema.sql',import.meta.url),'utf8'));console.log('DB 스키마 적용 완료');
  }else if(command==='create-admin'){
   const login=sec.normalizeId(await ask('관리자 아이디: '));
   const name=(await ask('관리자 이름: ')).trim();if(!name||name.length>80)throw new Error('이름은 1~80자입니다.');
@@ -47,6 +47,8 @@ try{
  }else if(command==='cleanup'){
   await db.query("DELETE FROM sessions WHERE expires_at<now() OR last_seen<now()-interval '30 minutes'");
   await db.query('DELETE FROM reset_tokens WHERE expires_at<now()');
+  await db.query('DELETE FROM sso_codes WHERE expires_at<now()');
+  await db.query('DELETE FROM service_sessions WHERE expires_at<now()');
   await db.query('DELETE FROM rate_limits WHERE expires_at<now()');console.log('만료 데이터 정리 완료');
  }else throw new Error('명령: migrate | create-admin | reset-admin | cleanup');
 }catch(e){console.error(e.code==='23505'?'이미 사용 중인 아이디입니다.':e.code?'DB 작업 실패: '+e.code:e.message);process.exitCode=1;}

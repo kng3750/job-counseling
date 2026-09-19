@@ -20,4 +20,3 @@ try{
  console.log('키 교체 완료. 서버의 ID_ENCRYPTION_KEY/ID_LOOKUP_KEY를 새 값으로 변경한 뒤 서비스를 재개하세요.');
 }catch(e){console.error(e.code?'키 교체 실패: '+e.code:e.message);process.exitCode=1;}
 finally{await db.end();}
-
