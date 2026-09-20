@@ -12,6 +12,6 @@ try{
   await c.query('DELETE FROM sso_codes WHERE client_id=$1',[id]);
   await c.query('DELETE FROM service_sessions WHERE client_id=$1',[id]);
  });
- console.log('SSO 클라이언트 등록/갱신 완료. 이전 Job Star 세션은 폐기되었습니다.');
+ console.log('SSO 클라이언트 등록/갱신 완료. 해당 클라이언트의 이전 세션은 폐기되었습니다.');
 }catch(e){console.error(e.code?'클라이언트 등록 실패: '+e.code:e.message);process.exitCode=1;}finally{await db.end();}
 

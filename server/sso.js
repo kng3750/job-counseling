@@ -43,7 +43,7 @@ export function createSso({db,authenticate,limit}) {
     return {id:c.id,grants:['authorization_code'],redirectUris:[c.redirect_uri]};
    },
    validateRedirectUri:(uri,client)=>client.redirectUris.includes(uri),
-   validateScope:(_user,_client,scope)=>!scope||scope.every(s=>s==='job-star')?['job-star']:false,
+   validateScope:(_user,client,scope)=>!scope||scope.every(s=>s===client.id)?[client.id]:false,
    generateAuthorizationCode:()=>sec.token(),
    generateAccessToken:()=>sec.token(),
    async saveAuthorizationCode(code,client,user){
@@ -58,7 +58,7 @@ export function createSso({db,authenticate,limit}) {
     const c=(await db().query('SELECT * FROM sso_codes WHERE code_hash=$1',[sec.digest(value)])).rows[0];
     if(!c)return false;const s=await validSession(c.session_hash);if(!s)return false;
     return {authorizationCode:value,expiresAt:new Date(c.expires_at),redirectUri:c.redirect_uri,codeChallenge:c.challenge,codeChallengeMethod:'S256',
-     scope:['job-star'],client:{id:c.client_id},user:{id:s.id,sessionHash:c.session_hash}};
+     scope:[c.client_id],client:{id:c.client_id},user:{id:s.id,sessionHash:c.session_hash}};
    },
    async revokeAuthorizationCode(code){
     // Atomic consume prevents parallel exchanges from both succeeding.
@@ -72,9 +72,9 @@ export function createSso({db,authenticate,limit}) {
      const expiry=new Date(Math.min(new Date(s.expires_at).getTime(),t.accessTokenExpiresAt.getTime()));
      await c.query('INSERT INTO service_sessions(token_hash,session_hash,client_id,expires_at) VALUES($1,$2,$3,$4)',
       [sec.digest(t.accessToken),user.sessionHash,client.id,expiry]);
-     await c.query("INSERT INTO audit_logs(actor_id,target_id,action) VALUES($1,$1,'job-star:sso-login')",[user.id]);
+     await c.query('INSERT INTO audit_logs(actor_id,target_id,action) VALUES($1,$1,$2)',[user.id,client.id+':sso-login']);
      // No refresh token: switching services must never extend absolute session expiry.
-     return {accessToken:t.accessToken,accessTokenExpiresAt:expiry,scope:['job-star'],client,user};
+     return {accessToken:t.accessToken,accessTokenExpiresAt:expiry,scope:[client.id],client,user};
     });
    }
   }
@@ -82,7 +82,7 @@ export function createSso({db,authenticate,limit}) {
  router.get('/authorize',async(req,res,next)=>{
   try{
    const q=req.query,c=await registered(q.client_id);
-   if(!c||q.redirect_uri!==c.redirect_uri||q.response_type!=='code'||q.scope!=='job-star'||
+   if(!c||q.redirect_uri!==c.redirect_uri||q.response_type!=='code'||q.scope!==c.id||
     typeof q.state!=='string'||!/^[A-Za-z0-9_-]{32,128}$/.test(q.state)||
     q.code_challenge_method!=='S256'||typeof q.code_challenge!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(q.code_challenge))throw fail(400,'잘못된 통합 로그인 요청입니다.');
    await limit(req,'sso-authorize',60,60);
@@ -114,7 +114,7 @@ export function createSso({db,authenticate,limit}) {
     AND a.expires_at>now() AND s.expires_at>now() AND s.last_seen>now()-interval '30 minutes'
     RETURNING u.id,u.name,u.role,s.expires_at`,[sec.digest(t),req.ssoClient.id]);
    const u=r.rows[0];if(!u)return res.json({active:false});
-   if(req.body.operation==='generate')await limit(req,'job-star:generate',30,3600,u.id);
+   if(req.body.operation==='generate')await limit(req,req.ssoClient.id+':generate',30,3600,u.id);
    res.json({active:true,sub:u.id,name:u.name,role:u.role,aud:req.ssoClient.id,exp:Math.floor(new Date(u.expires_at).getTime()/1000)});
   }catch(e){next(e);}
  });
@@ -124,7 +124,7 @@ export function createSso({db,authenticate,limit}) {
    await transaction(db(),async c=>{
     const r=await c.query(`DELETE FROM sessions WHERE token_hash IN
      (SELECT session_hash FROM service_sessions WHERE token_hash=$1 AND client_id=$2) RETURNING user_id`,[sec.digest(t),req.ssoClient.id]);
-    if(r.rows[0])await c.query("INSERT INTO audit_logs(actor_id,target_id,action) VALUES($1,$1,'job-star:logout')",[r.rows[0].user_id]);
+    if(r.rows[0])await c.query('INSERT INTO audit_logs(actor_id,target_id,action) VALUES($1,$1,$2)',[r.rows[0].user_id,req.ssoClient.id+':logout']);
    });res.json({ok:true});
   }catch(e){next(e);}
  });

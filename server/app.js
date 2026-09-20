@@ -70,9 +70,10 @@ export function createApp({db:injectedDb,generator=generate}={}) {
   }
  }
  app.use('/oauth',createSso({db,authenticate,limit}));
- app.get('/services/job-star',authenticate,async(req,res)=>{
-  const c=(await db().query("SELECT redirect_uri FROM sso_clients WHERE id='job-star' AND enabled=true")).rows[0];
-  if(!c)throw fail(503,'Job Star 연결 설정이 필요합니다.');
+ app.get('/services/:service',authenticate,async(req,res)=>{
+  if(!['job-star','ats','holland'].includes(req.params.service))throw fail(404,'서비스를 찾을 수 없습니다.');
+  const c=(await db().query('SELECT redirect_uri FROM sso_clients WHERE id=$1 AND enabled=true',[req.params.service])).rows[0];
+  if(!c)throw fail(503,'서비스 연결 설정이 필요합니다.');
   res.redirect(new URL('/login',c.redirect_uri).href);
  });
  const admin=(req,res,next)=>req.user.role==='admin'?next():next(fail(403,'관리자만 이용할 수 있습니다.'));

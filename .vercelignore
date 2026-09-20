@@ -2,5 +2,5 @@ node_modules
 work
 test
 .env*
-!.env.example
+
 
